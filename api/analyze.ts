@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { AnalysisResult, WordStats, JlptWord, BccwjWord } from '../types';
 import kuromoji from 'kuromoji';
 import path from 'path';
+import fs from 'fs';
 
 // Inisialisasi Supabase
 const supabaseUrl = 'https://xxnsvylzzkgcnubaegyv.supabase.co';
@@ -16,8 +17,35 @@ const getTokenizer = async (): Promise<kuromoji.Tokenizer<kuromoji.IpadicFeature
     if (tokenizer) return tokenizer;
 
     return new Promise((resolve, reject) => {
-        // Path ke kamus di dalam node_modules saat deploy di Vercel
-        const dicPath = path.join((process as any).cwd(), 'node_modules', 'kuromoji', 'dict');
+        // Fix for TS errors: process.cwd() not on type 'Process' and __dirname missing in ESM/Vite context
+        const cwd = (process as any).cwd();
+
+        // Coba beberapa kemungkinan path untuk kamus
+        const possiblePaths = [
+            path.join(cwd, 'node_modules', 'kuromoji', 'dict'),
+            // Fallback replacements for __dirname logic
+            path.join(cwd, '..', 'node_modules', 'kuromoji', 'dict'), 
+            path.join(cwd, 'api', 'node_modules', 'kuromoji', 'dict'), 
+            path.join(cwd, 'dict') // Fallback khusus Vercel
+        ];
+
+        let dicPath = '';
+        for (const p of possiblePaths) {
+            if (fs.existsSync(p)) {
+                dicPath = p;
+                console.log(`[DEBUG] Dictionary found at: ${dicPath}`);
+                break;
+            }
+        }
+
+        if (!dicPath) {
+             console.error(`[ERROR] Dictionary not found. Checked: ${possiblePaths.join(', ')}`);
+             console.error(`[DEBUG] CWD: ${cwd}`);
+             try {
+                console.error(`[DEBUG] Root listing: ${fs.readdirSync(cwd).join(', ')}`);
+             } catch (e) { /* ignore */ }
+             return reject(new Error("Dictionary directory not found"));
+        }
         
         kuromoji.builder({ dicPath })
             .build((err, _tokenizer) => {
@@ -36,7 +64,6 @@ const CHUNK_SIZE = 50;
 
 const queryDatabaseInChunks = async <T,>(table: string, column: string, select: string, values: string[]): Promise<T[]> => {
     const results: T[] = [];
-    // Hapus duplikat sebelum query untuk efisiensi
     const uniqueValues = Array.from(new Set(values));
     
     for (let i = 0; i < uniqueValues.length; i += CHUNK_SIZE) {
@@ -48,7 +75,6 @@ const queryDatabaseInChunks = async <T,>(table: string, column: string, select: 
 
         if (error) {
             console.error(`Error querying ${table}:`, error);
-            // Jangan throw error fatal, return array kosong saja agar analisis tetap jalan sebagian
             continue; 
         }
         if (data) {
@@ -112,7 +138,6 @@ const calculateResults = (allTokens: string[], jlptData: JlptWord[], bccwjData: 
         return { stats, predictedLevel: { level: "Tidak dapat ditentukan", description: "Kosakata yang diketahui tidak cukup untuk menentukan level." } };
     }
 
-    // Algoritma pembobotan sederhana
     score += N5 * 1;
     score += N4 * 2;
     score += N3 * 3.5;
@@ -150,24 +175,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              return res.status(400).json({ error: "Teks tidak boleh kosong." });
         }
 
-        // Dapatkan tokenizer (lazy load)
         const tokenizerInstance = await getTokenizer();
-        
-        // Tokenisasi
         const tokens = tokenizerInstance.tokenize(text);
         
-        // Filter dan normalisasi
-        // Kita hanya mengambil Kata Benda (名詞), Kata Kerja (動詞), Kata Sifat (形容詞), Kata Keterangan (副詞)
         const allowedPos = ['名詞', '動詞', '形容詞', '副詞'];
         
         const allTokens: string[] = tokens
             .filter(token => allowedPos.includes(token.pos))
             .map(token => {
-                // Gunakan basic_form (bentuk kamus) jika ada, jika tidak gunakan surface_form (kata asli)
-                // Kuromoji kadang mengembalikan '*' untuk basic_form jika tidak tahu
                 return (token.basic_form && token.basic_form !== '*') ? token.basic_form : token.surface_form;
             })
-            // Filter token yang terlalu pendek atau simbol aneh
             .filter(word => word.length > 0 && !/^[\u3000-\u303F]+$/.test(word));
 
         const jlptData = await queryDatabaseInChunks<JlptWord>('jlpt', 'word', 'word,tags', allTokens);
