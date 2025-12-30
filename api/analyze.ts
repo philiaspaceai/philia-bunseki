@@ -2,7 +2,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import type { AnalysisResult, WordStats, JlptWord, BccwjWord } from '../types';
-import { Tokenizer, Dictionary } from '@works-applications/sudachi-js';
+import { Tokenizer, Dictionary } from '@works-applications/sudachi.js';
 
 // Inisialisasi Supabase di sisi server
 const supabaseUrl = 'https://xxnsvylzzkgcnubaegyv.supabase.co';
