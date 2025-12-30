@@ -2,12 +2,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import type { AnalysisResult, WordStats, JlptWord, BccwjWord } from '../types';
+import { Tokenizer, Dictionary } from 'sudachi-js';
 
 // Inisialisasi Supabase di sisi server
 const supabaseUrl = 'https://xxnsvylzzkgcnubaegyv.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bnN2eWx6emtnY251YmFlZ3l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MDE0MjcsImV4cCI6MjA3OTk3NzQyN30.x0wz0v_qqvg6riMipKMr3IM30YnGaGs1b9uMvJRGG5M';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Inisialisasi tokenizer di luar handler untuk digunakan kembali di seluruh invokasi
+let tokenizer: Tokenizer | null = null;
+try {
+    const dictionary = new Dictionary();
+    tokenizer = dictionary.create();
+    console.log("Sudachi tokenizer initialized successfully.");
+} catch (e) {
+    console.error("Failed to initialize Sudachi tokenizer", e);
+}
 
 const CHUNK_SIZE = 50;
 
@@ -111,15 +121,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
+    if (!tokenizer) {
+        return res.status(500).json({ error: 'Tokenizer tidak tersedia.' });
+    }
 
     try {
-        const { tokens: allTokens } = req.body;
+        const { text } = req.body;
 
-        if (!allTokens || !Array.isArray(allTokens)) {
-            return res.status(400).json({ error: 'Input "tokens" yang berupa array dibutuhkan.' });
+        if (!text || typeof text !== 'string') {
+            return res.status(400).json({ error: 'Input "text" yang berupa string dibutuhkan.' });
         }
 
-        const uniqueTokens = Array.from(new Set(allTokens as string[]));
+        const tokens = tokenizer.tokenize(text);
+        
+        // Fix: Explicitly type `allTokens` as `string[]`. This resolves the issue where `uniqueTokens`
+        // was being inferred as `unknown[]`, causing a type mismatch in function calls.
+        const allTokens: string[] = tokens
+            .filter(token => {
+                const partOfSpeech = token.getPartOfSpeech()[0];
+                return ['名詞', '動詞', '形容詞', '副詞'].includes(partOfSpeech);
+            })
+            .map(token => token.getDictionaryForm());
+
+        const uniqueTokens = Array.from(new Set(allTokens));
 
         const jlptData = await queryDatabaseInChunks<JlptWord>('jlpt', 'word', 'word,tags', uniqueTokens);
         const bccwjData = await queryDatabaseInChunks<BccwjWord>('bccwj', 'word', 'word,id', uniqueTokens);
