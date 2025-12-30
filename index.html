@@ -33,15 +33,38 @@
 <link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-gray-900 text-white">
+    <div id="update-notification" class="hidden fixed top-0 left-0 right-0 bg-indigo-600 text-white p-3 text-center shadow-lg z-50">
+      Versi baru tersedia!
+      <button id="reload-button" class="ml-4 font-bold underline hover:text-indigo-200">Muat Ulang</button>
+    </div>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
     <script>
+      let newWorker;
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js').then(registration => {
-            console.log('SW registered: ', registration);
+          navigator.serviceWorker.register('/service-worker.js').then(reg => {
+            console.log('SW registered: ', reg);
+            reg.addEventListener('updatefound', () => {
+              newWorker = reg.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  const notification = document.getElementById('update-notification');
+                  notification.classList.remove('hidden');
+                }
+              });
+            });
           }).catch(registrationError => {
             console.log('SW registration failed: ', registrationError);
+          });
+
+          const reloadButton = document.getElementById('reload-button');
+          reloadButton.addEventListener('click', () => {
+            newWorker.postMessage({ action: 'skipWaiting' });
+          });
+
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            window.location.reload();
           });
         });
       }
