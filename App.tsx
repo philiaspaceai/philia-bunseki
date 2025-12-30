@@ -3,12 +3,20 @@ import React, { useState, useCallback, useEffect } from 'react';
 import FileUploader from './components/FileUploader';
 import AnalysisInProgress from './components/AnalysisInProgress';
 import ResultsDisplay from './components/ResultsDisplay';
-import { runAnalysis } from './services/analyzer';
 import type { AnalysisResult, AppStatus } from './types';
 import LogButton from './components/LogButton';
 import { logger } from './services/logger';
 import SupabaseStatusIndicator from './components/SupabaseStatusIndicator';
 import { supabase } from './lib/supabaseClient';
+import { parseSrt } from './services/srtParser';
+
+// Client-side fallback for Japanese tokenization.
+const simpleTokenize = (text: string): string[] => {
+    const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+/g;
+    const matches = text.match(japaneseRegex);
+    return matches || [];
+};
+
 
 const App: React.FC = () => {
     const [status, setStatus] = useState<AppStatus>('idle');
@@ -41,7 +49,46 @@ const App: React.FC = () => {
         setResults(null);
         
         try {
-            const analysisResults = await runAnalysis(files, setProgressMessage);
+            if (files.length === 0) {
+                throw new Error("Tidak ada file yang dipilih.");
+            }
+
+            setProgressMessage('Membaca dan mem-parsing file subtitle...');
+            logger.log('Membaca dan mem-parsing file subtitle...');
+            const fileContents = await Promise.all(
+                Array.from(files).map(file => file.text())
+            );
+            const combinedSrt = fileContents.join('\n\n');
+            const cleanText = parseSrt(combinedSrt);
+            logger.log(`Parsing selesai. Total karakter teks bersih: ${cleanText.length}.`);
+            
+            if (!cleanText) {
+                throw new Error("Tidak dapat mengekstrak teks dari file yang diberikan.");
+            }
+            
+            setProgressMessage('Melakukan tokenisasi teks Jepang...');
+            logger.log('Melakukan tokenisasi teks Jepang...');
+            const allTokens = simpleTokenize(cleanText);
+            logger.log(`Tokenisasi selesai. Total token: ${allTokens.length}.`);
+
+            setProgressMessage('Mengirim data ke server untuk analisis...');
+            logger.log('Mengirim data ke server untuk analisis...');
+
+            const response = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ tokens: allTokens }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server merespons dengan status ${response.status}`);
+            }
+
+            const analysisResults: AnalysisResult = await response.json();
+
             setResults(analysisResults);
             setStatus('success');
             logger.log(`Analisis berhasil. Level prediksi: ${analysisResults.predictedLevel.level}`);
