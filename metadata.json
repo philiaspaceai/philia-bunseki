@@ -1,0 +1,5 @@
+{
+  "name": "Philia Bunseki",
+  "description": "An elegant PWA to predict the Japanese language difficulty of an anime by analyzing its .srt subtitle files using JLPT and word frequency data.",
+  "requestFramePermissions": []
+}
