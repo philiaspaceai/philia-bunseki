@@ -126,16 +126,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+        console.log("Received request body:", JSON.stringify(req.body, null, 2));
+
+        if (!req.body || typeof req.body !== 'object' || !('text' in req.body)) {
+            return res.status(400).json({ error: "Request body harus berupa objek JSON dengan properti 'text'." });
+        }
+
         const { text } = req.body;
 
-        if (!text || typeof text !== 'string') {
-            return res.status(400).json({ error: 'Input "text" yang berupa string dibutuhkan.' });
+        if (typeof text !== 'string' || text.trim() === '') {
+             return res.status(400).json({ error: "Properti 'text' harus berupa string dan tidak boleh kosong." });
         }
 
         const tokens = tokenizer.tokenize(text);
         
-        // Fix: Explicitly type `allTokens` as `string[]`. This resolves the issue where `uniqueTokens`
-        // was being inferred as `unknown[]`, causing a type mismatch in function calls.
         const allTokens: string[] = tokens
             .filter(token => {
                 const partOfSpeech = token.getPartOfSpeech()[0];
