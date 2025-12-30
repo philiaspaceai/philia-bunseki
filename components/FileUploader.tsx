@@ -21,7 +21,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onAnalyze }) => {
         e.stopPropagation();
         setIsDragging(false);
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            // Fix: Explicitly type `file` as `File` to resolve an issue where its type was inferred as `unknown`.
             const srtFiles = Array.from(e.dataTransfer.files).filter((file: File) => file.name.endsWith('.srt'));
             setFiles(srtFiles);
         }
