@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import FileUploader from './components/FileUploader';
 import AnalysisInProgress from './components/AnalysisInProgress';
@@ -70,9 +69,17 @@ const App: React.FC = () => {
                 body: JSON.stringify({ text: cleanText }),
             });
 
+            const contentType = response.headers.get("content-type");
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Server merespons dengan status ${response.status}`);
+                if (contentType && contentType.includes("application/json")) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Server merespons dengan status ${response.status}`);
+                } else {
+                    const errorText = await response.text();
+                    // Potong error text jika terlalu panjang (html error page)
+                    const shortError = errorText.length > 200 ? errorText.substring(0, 200) + "..." : errorText;
+                    throw new Error(`Server Error (${response.status}): ${shortError}`);
+                }
             }
 
             const analysisResults: AnalysisResult = await response.json();
@@ -81,14 +88,15 @@ const App: React.FC = () => {
             setStatus('success');
             logger.log(`Analisis berhasil. Level prediksi: ${analysisResults.predictedLevel.level}`);
         } catch (err) {
+            let errorMessage = 'Terjadi kesalahan yang tidak diketahui.';
             if (err instanceof Error) {
-                setError(err.message);
-                logger.log(`Analisis gagal: ${err.message}`);
-            } else {
-                const unknownError = 'Terjadi kesalahan yang tidak diketahui.';
-                setError(unknownError);
-                logger.log(`Analisis gagal: ${unknownError}`);
+                errorMessage = err.message;
+            } else if (typeof err === 'string') {
+                errorMessage = err;
             }
+            
+            setError(errorMessage);
+            logger.log(`Analisis gagal: ${errorMessage}`);
             setStatus('error');
         }
     }, []);
@@ -110,10 +118,12 @@ const App: React.FC = () => {
                 return (
                     <div className="text-center p-8">
                         <h2 className="text-2xl font-bold text-red-400 mb-4">Analisis Gagal</h2>
-                        <p className="text-gray-400 bg-gray-800 p-4 rounded-lg">{error}</p>
+                        <div className="text-left bg-gray-800 p-4 rounded-lg overflow-x-auto max-w-2xl mx-auto mb-6 border border-gray-700">
+                             <pre className="text-red-300 text-sm whitespace-pre-wrap font-mono break-words">{error}</pre>
+                        </div>
                         <button
                             onClick={handleReset}
-                            className="mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition-all duration-300 shadow-lg hover:shadow-indigo-500/25"
                         >
                             Coba Lagi
                         </button>
