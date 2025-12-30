@@ -10,13 +10,6 @@ import SupabaseStatusIndicator from './components/SupabaseStatusIndicator';
 import { supabase } from './lib/supabaseClient';
 import { parseSrt } from './services/srtParser';
 
-// Client-side fallback for Japanese tokenization.
-const simpleTokenize = (text: string): string[] => {
-    const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+/g;
-    const matches = text.match(japaneseRegex);
-    return matches || [];
-};
-
 
 const App: React.FC = () => {
     const [status, setStatus] = useState<AppStatus>('idle');
@@ -66,20 +59,15 @@ const App: React.FC = () => {
                 throw new Error("Tidak dapat mengekstrak teks dari file yang diberikan.");
             }
             
-            setProgressMessage('Melakukan tokenisasi teks Jepang...');
-            logger.log('Melakukan tokenisasi teks Jepang...');
-            const allTokens = simpleTokenize(cleanText);
-            logger.log(`Tokenisasi selesai. Total token: ${allTokens.length}.`);
-
-            setProgressMessage('Mengirim data ke server untuk analisis...');
-            logger.log('Mengirim data ke server untuk analisis...');
+            setProgressMessage('Mengirim teks ke server untuk tokenisasi dan analisis...');
+            logger.log('Mengirim teks ke server untuk tokenisasi dan analisis...');
 
             const response = await fetch('/api/analyze', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ tokens: allTokens }),
+                body: JSON.stringify({ text: cleanText }),
             });
 
             if (!response.ok) {
