@@ -1,9 +1,9 @@
-
 {
     "functions": {
         "api/analyze.ts": {
-            "maxDuration": 30,
-            "memory": 1024
+            "maxDuration": 60,
+            "memory": 1024,
+            "includeFiles": "node_modules/kuromoji/dict/**"
         }
     }
 }
