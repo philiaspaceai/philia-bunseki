@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'philia-bunseki-v1';
+const CACHE_NAME = 'philia-bunseki-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -43,4 +43,10 @@ self.addEventListener('activate', event => {
       );
     })
   );
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.action === 'skipWaiting') {
+    self.skipWaiting();
+  }
 });
