@@ -4,7 +4,10 @@
   "private": true,
   "description": "Serverless function dependencies for Philia Bunseki",
   "dependencies": {
-    "@works-applications/sudachi.js": "^0.6.2",
-    "@works-applications/sudachidict_core": "^0.6.2"
+    "kuromoji": "^0.1.2"
+  },
+  "devDependencies": {
+    "@types/kuromoji": "^0.1.3",
+    "@types/node": "^20.0.0"
   }
 }
