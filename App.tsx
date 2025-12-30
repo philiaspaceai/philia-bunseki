@@ -132,10 +132,6 @@ const App: React.FC = () => {
                             </p>
                         </header>
                         <FileUploader onAnalyze={handleAnalysis} />
-                         <div className="mt-8 text-sm text-gray-500 max-w-3xl mx-auto px-4">
-                            <h3 className="font-semibold text-gray-400">Penting:</h3>
-                            <p>Akurasi analisis bergantung pada tokenisasi kata. Aplikasi ini menggunakan metode sederhana di sisi klien. Untuk hasil terbaik dengan segmentasi kata menggunakan SudachiJS, aplikasi ini harus di-deploy di Vercel dengan API Route Next.js, karena SudachiJS membutuhkan lingkungan Node.js.</p>
-                        </div>
                     </div>
                 );
         }
