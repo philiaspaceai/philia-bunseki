@@ -36,7 +36,8 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, onReset }) => 
 
     const pieData = Object.entries(stats.jlptDistribution)
         .map(([name, value]) => ({ name, value }))
-        // Fix: Cast item.value to a number to allow comparison, as its type was being inferred as 'unknown'.
+        // FIX: The value from Object.entries can be inferred as 'unknown' in some TypeScript
+        // configurations, causing a type error in the comparison. Cast to number to resolve it.
         .filter(item => (item.value as number) > 0)
         .sort((a, b) => {
              const order = ['N5', 'N4', 'N3', 'N2', 'N1', 'Unknown'];
@@ -46,6 +47,11 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, onReset }) => 
     const toggleListVisibility = (level: keyof typeof results.stats.jlptWordLists) => {
         setVisibleList(visibleList === level ? null : level);
     };
+
+    // FIX: Prevent division by zero if there are no unique words, which would result in NaN.
+    const knownPercentage = stats.uniqueWords > 0 
+        ? (100 - (stats.jlptDistribution.Unknown / stats.uniqueWords * 100))
+        : 0;
 
     return (
         <div className="space-y-8 p-4 animate-fade-in-up">
@@ -71,7 +77,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, onReset }) => 
                  <StatCard 
                     icon={<ChartIcon className="w-8 h-8"/>} 
                     title="Kosakata Dikenali" 
-                    value={`${(100 - (stats.jlptDistribution.Unknown / stats.uniqueWords * 100)).toFixed(1)}%`}
+                    value={`${knownPercentage.toFixed(1)}%`}
                     description={`${stats.jlptDistribution.Unknown.toLocaleString()} kata tidak dikenal`}
                 />
             </div>
