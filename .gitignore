@@ -2,15 +2,16 @@
 # Ketergantungan
 /node_modules
 
+# Artefak Build
+/dict
+/build
+/dist
+
 # Log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 log.txt
-
-# Artefak build (meskipun tidak digunakan dalam proyek ini, ini adalah praktik yang baik)
-/build
-/dist
 
 # File environment
 .env
