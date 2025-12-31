@@ -1,29 +1,80 @@
-import { TokenizedWord } from "../types";
+import { Token } from '../types';
 
-export const tokenizeText = async (text: string): Promise<string[]> => {
-  // Check if running on localhost vs production to give helpful hint
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+declare global {
+  interface Window {
+    kuromoji: any;
+  }
+}
 
-  try {
-    const response = await fetch('/api/tokenize', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ text }),
-    });
+let tokenizerInstance: any = null;
 
-    if (!response.ok) {
-      if (response.status === 404 && isLocal) {
-        throw new Error("Development Environment Detected: The Python Tokenizer API only works when deployed to Vercel (Serverless Functions). It cannot run in the browser or via 'npm start'. Please deploy to Vercel to test analysis.");
+async function waitForServiceWorker() {
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+
+  const registration = await navigator.serviceWorker.ready;
+  
+  // Pastikan SW benar-benar mengontrol halaman ini
+  if (navigator.serviceWorker.controller) {
+    console.log("SW already controlling");
+    return;
+  }
+
+  console.log("Waiting for SW controller...");
+  return new Promise<void>((resolve) => {
+    const onControllerChange = () => {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+        console.log("SW control acquired!");
+        resolve();
       }
-      throw new Error(`Tokenization API Error: ${response.statusText}`);
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+    
+    // Safety timeout: jika dalam 6 detik tidak ada controllerchange, 
+    // coba paksa klaim atau lanjut saja (mungkin gagal tapi tidak hang)
+    setTimeout(() => {
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+      resolve();
+    }, 6000);
+  });
+}
+
+export async function initializeTokenizer(): Promise<void> {
+  if (tokenizerInstance) return;
+
+  console.log("Initializing Tokenizer...");
+  await waitForServiceWorker();
+
+  return new Promise((resolve, reject) => {
+    if (!window.kuromoji) {
+      return reject(new Error('Kuromoji library missing from global scope.'));
     }
 
-    const data = await response.json();
-    return data.tokens; // Expecting { tokens: string[] } dictionary forms
-  } catch (error: any) {
-    console.error("Tokenization failed", error);
-    throw error;
+    const builder = window.kuromoji.builder({ dicPath: '/dict/' });
+    
+    const buildTimeout = setTimeout(() => {
+      reject(new Error('Kamus hang saat inisialisasi. Pastikan koneksi stabil dan Service Worker aktif.'));
+    }, 25000);
+
+    builder.build((err: any, tokenizer: any) => {
+      clearTimeout(buildTimeout);
+      if (err) {
+        console.error('Kuromoji build error:', err);
+        reject(new Error('Kamus gagal dimuat. Error: ' + (err.message || 'Network/DB Error')));
+      } else {
+        tokenizerInstance = tokenizer;
+        console.log("Tokenizer ready!");
+        resolve();
+      }
+    });
+  });
+}
+
+export function tokenize(text: string): Token[] {
+  if (!tokenizerInstance) {
+    throw new Error('Tokenizer belum siap.');
   }
-};
+  return tokenizerInstance.tokenize(text);
+}
