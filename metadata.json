@@ -1,5 +1,5 @@
 {
   "name": "Philia Bunseki",
-  "description": "A refined Japanese anime subtitle analyzer that determines language difficulty levels based on JLPT and BCCWJ standards.",
+  "description": "Advanced Japanese anime subtitle analysis tool for JLPT level prediction and vocabulary statistics.",
   "requestFramePermissions": []
 }
