@@ -1,30 +1,52 @@
-export const parseSRT = (content: string): string => {
-  // Normalize line endings
-  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  
-  // Split by double newline which usually separates subtitle blocks
-  const blocks = normalized.split('\n\n');
-  
-  let fullText = "";
+/**
+ * Cleans raw subtitle text by removing noises, names, and tags.
+ */
+const cleanSubtitleText = (text: string): string => {
+  let cleaned = text;
 
-  for (const block of blocks) {
-    const lines = block.split('\n');
-    // Basic SRT structure: 
-    // Line 1: Index
-    // Line 2: Timestamp
-    // Line 3+: Text
-    if (lines.length >= 3) {
-      // Filter out lines that look like timestamps or indices
-      const textLines = lines.filter(line => {
-        return !line.match(/^\d+$/) && !line.match(/^\d{2}:\d{2}:\d{2},\d{3}/);
-      });
-      
-      fullText += textLines.join(' ') + " ";
-    }
-  }
+  // 1. Remove HTML tags
+  cleaned = cleaned.replace(/<[^>]*>/g, '');
 
-  // Remove HTML tags often found in subtitles (<i>, <b>, <font>)
-  fullText = fullText.replace(/<[^>]*>/g, '');
-  
-  return fullText.trim();
+  // 2. Remove ASS/SSA tags (positioning, etc.) e.g., {\pos(192,210)}
+  cleaned = cleaned.replace(/\{[^}]*\}/g, '');
+
+  // 3. Remove Names in brackets (standard, full-width, square, lenticular)
+  // e.g. （阿良々木）, 【名前】, [Name]
+  cleaned = cleaned.replace(/（[^）]*）/g, '');
+  cleaned = cleaned.replace(/【[^】]*】/g, '');
+  cleaned = cleaned.replace(/\[[^\]]*\]/g, '');
+  cleaned = cleaned.replace(/\([^\)]*\)/g, ''); // Standard parentheses often used for furigana too
+
+  // 4. Remove Sound Effects/Music indicators
+  cleaned = cleaned.replace(/[♪～☆★※]/g, '');
+  cleaned = cleaned.replace(/\(BGM[^)]*\)/gi, '');
+  cleaned = cleaned.replace(/\(SE[^)]*\)/gi, '');
+
+  // 5. Remove extra whitespace and newlines
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  return cleaned;
+};
+
+export const parseSRT = (fileContent: string): string => {
+  const lines = fileContent.split(/\r?\n/);
+  let accumulatedText = "";
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    
+    // Skip empty lines
+    if (!trimmed) return;
+    
+    // Skip numeric index lines (simple check: is it just a number?)
+    if (/^\d+$/.test(trimmed)) return;
+
+    // Skip Timestamp lines (e.g., 00:00:03,628 --> 00:00:05,547)
+    if (trimmed.includes('-->')) return;
+
+    // It's likely dialog text. Add it.
+    accumulatedText += trimmed + " ";
+  });
+
+  return cleanSubtitleText(accumulatedText);
 };
