@@ -1,54 +1,67 @@
-export interface Token {
+export interface ParsedSubtitle {
+  fileName: string;
+  rawText: string;
+  cleanText: string;
+}
+
+export interface TokenizedWord {
   surface: string;
   dictionaryForm: string;
-  reading?: string;
-  partOfSpeech?: string[];
+  reading: string;
+  partOfSpeech: string[];
 }
 
-export type JLPTLevel = 'N1' | 'N2' | 'N3' | 'N4' | 'N5' | 'Unknown';
-
-export type BCCWJLevel = 'Beginner' | 'Elementary' | 'Intermediate' | 'Advanced' | 'Expert' | 'Unknown';
-
-export interface WordData {
+export interface JLPTRow {
   word: string;
   reading: string;
-  jlpt: JLPTLevel;
-  bccwj: BCCWJLevel;
-  frequency_rank?: number;
-  count: number;
+  tags: number; // 1=N1, 5=N5
 }
 
-export interface Statistics {
-  totalWords: number;
-  uniqueWords: number;
-  coverage: number; // percentage
-  jlptDistribution: Record<JLPTLevel, { count: number; percentage: number }>;
-  bccwjDistribution: Record<BCCWJLevel, { count: number; percentage: number }>;
-  overallScore: number; // 0-100
-  grade: string; // A, B, C...
-  recommendation: string;
-}
-
-export interface AnalysisResult {
-  id?: number; // IndexedDB ID
-  title: string;
-  fileName: string;
-  timestamp: number;
-  stats: Statistics;
-  topWords: WordData[];
-  hardWords: WordData[];
-  allWords: WordData[]; // Usually simplified for storage
-}
-
-// Database schema types
-export interface DB_JLPT {
-  word: string;
-  reading: string;
-  tags: number; // 1-5
-}
-
-export interface DB_BCCWJ {
+export interface BCCWJRow {
   id: number;
   word: string;
   reading: string;
+}
+
+export interface WordAnalysis {
+  word: string;
+  reading?: string;
+  count: number;
+  jlptLevel: number | null; // 1-5, null if unknown
+  bccwjId: number | null;
+  bccwjLevel: BCCWJLevel;
+}
+
+export type BCCWJLevel = 'Beginner' | 'Elementary' | 'Intermediate' | 'Advanced' | 'Expert' | 'Unknown';
+
+export interface AnalysisResult {
+  id: string; // uuid
+  fileName: string;
+  title: string; // derived from filename or user input
+  timestamp: number;
+  totalWords: number; // Token count (with duplicates)
+  uniqueWords: number;
+  coverage: number; // % found in DB
+  
+  // Stats
+  jlptStats: Record<string, { count: number; percentage: number }>;
+  bccwjStats: Record<string, { count: number; percentage: number }>;
+  
+  // Conclusions
+  jlptConclusion: string;
+  bccwjConclusion: string;
+  overallScore: number; // 0-100
+  recommendation: string;
+
+  // Data
+  wordList: WordAnalysis[];
+}
+
+export interface HistoryItem {
+  id: string;
+  fileName: string;
+  timestamp: number;
+  jlptConclusion: string;
+  bccwjConclusion: string;
+  overallScore: number;
 }
