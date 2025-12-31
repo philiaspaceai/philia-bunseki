@@ -1,43 +1,54 @@
-
-export type AppStatus = 'idle' | 'analyzing' | 'success' | 'error';
-
-export interface JlptWord {
-    word: string;
-    tags: string; // JLPT level as a string '1', '2', '3', '4', '5'
+export interface Token {
+  surface: string;
+  dictionaryForm: string;
+  reading?: string;
+  partOfSpeech?: string[];
 }
 
-export interface BccwjWord {
-    word: string;
-    id: number; // Frequency rank
+export type JLPTLevel = 'N1' | 'N2' | 'N3' | 'N4' | 'N5' | 'Unknown';
+
+export type BCCWJLevel = 'Beginner' | 'Elementary' | 'Intermediate' | 'Advanced' | 'Expert' | 'Unknown';
+
+export interface WordData {
+  word: string;
+  reading: string;
+  jlpt: JLPTLevel;
+  bccwj: BCCWJLevel;
+  frequency_rank?: number;
+  count: number;
 }
 
-export interface WordStats {
-    totalWords: number;
-    uniqueWords: number;
-    jlptDistribution: {
-        N1: number;
-        N2: number;
-        N3: number;
-        N4: number;
-        N5: number;
-        Unknown: number;
-    };
-    jlptWordLists: {
-        N1: string[];
-        N2: string[];
-        N3: string[];
-        N4: string[];
-        N5: string[];
-        Unknown: string[];
-    };
-    averageFrequencyRank: number;
-    wordsByFrequency: { word: string; rank: number }[];
+export interface Statistics {
+  totalWords: number;
+  uniqueWords: number;
+  coverage: number; // percentage
+  jlptDistribution: Record<JLPTLevel, { count: number; percentage: number }>;
+  bccwjDistribution: Record<BCCWJLevel, { count: number; percentage: number }>;
+  overallScore: number; // 0-100
+  grade: string; // A, B, C...
+  recommendation: string;
 }
 
 export interface AnalysisResult {
-    stats: WordStats;
-    predictedLevel: {
-        level: string;
-        description: string;
-    };
+  id?: number; // IndexedDB ID
+  title: string;
+  fileName: string;
+  timestamp: number;
+  stats: Statistics;
+  topWords: WordData[];
+  hardWords: WordData[];
+  allWords: WordData[]; // Usually simplified for storage
+}
+
+// Database schema types
+export interface DB_JLPT {
+  word: string;
+  reading: string;
+  tags: number; // 1-5
+}
+
+export interface DB_BCCWJ {
+  id: number;
+  word: string;
+  reading: string;
 }
