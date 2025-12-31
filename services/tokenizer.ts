@@ -1,75 +1,86 @@
+
 import { Token } from '../types';
+import { logger } from './logger';
 
 declare global {
   interface Window {
     kuromoji: any;
+    __SW_STATUS__?: 'ACTIVE' | 'FAILED' | 'PENDING';
   }
 }
 
 let tokenizerInstance: any = null;
 
-async function waitForServiceWorker() {
-  if (!('serviceWorker' in navigator)) {
-    return;
+// Daftar CDN cadangan jika satu diblokir sandbox
+const CDN_OPTIONS = [
+  'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/',
+  'https://unpkg.com/kuromoji@0.1.2/dict/',
+  'https://raw.githubusercontent.com/takuyaa/kuromoji.js/master/dict/'
+];
+
+async function getDictionaryPath(): Promise<string> {
+  // Gunakan kamus lokal jika Service Worker berhasil (Terbaik untuk Vercel)
+  if (window.__SW_STATUS__ === 'ACTIVE' && navigator.serviceWorker.controller) {
+    logger.log('Mode Optimal: Menggunakan Kamus Lokal.', 'success');
+    return 'dict/'; 
   }
 
-  const registration = await navigator.serviceWorker.ready;
-  
-  // Pastikan SW benar-benar mengontrol halaman ini
-  if (navigator.serviceWorker.controller) {
-    console.log("SW already controlling");
-    return;
+  // Jika di Sandbox, beri tahu user
+  if (window.location.hostname.includes('usercontent.goog')) {
+    logger.log('Berjalan di Sandbox Preview. Mencoba akses CDN...', 'info');
   }
 
-  console.log("Waiting for SW controller...");
-  return new Promise<void>((resolve) => {
-    const onControllerChange = () => {
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-        console.log("SW control acquired!");
-        resolve();
-      }
-    };
-    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
-    
-    // Safety timeout: jika dalam 6 detik tidak ada controllerchange, 
-    // coba paksa klaim atau lanjut saja (mungkin gagal tapi tidak hang)
-    setTimeout(() => {
-      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-      resolve();
-    }, 6000);
-  });
+  return CDN_OPTIONS[0];
 }
 
 export async function initializeTokenizer(): Promise<void> {
   if (tokenizerInstance) return;
 
-  console.log("Initializing Tokenizer...");
-  await waitForServiceWorker();
-
-  return new Promise((resolve, reject) => {
-    if (!window.kuromoji) {
-      return reject(new Error('Kuromoji library missing from global scope.'));
-    }
-
-    const builder = window.kuromoji.builder({ dicPath: '/dict/' });
-    
-    const buildTimeout = setTimeout(() => {
-      reject(new Error('Kamus hang saat inisialisasi. Pastikan koneksi stabil dan Service Worker aktif.'));
-    }, 25000);
-
-    builder.build((err: any, tokenizer: any) => {
-      clearTimeout(buildTimeout);
-      if (err) {
-        console.error('Kuromoji build error:', err);
-        reject(new Error('Kamus gagal dimuat. Error: ' + (err.message || 'Network/DB Error')));
-      } else {
-        tokenizerInstance = tokenizer;
-        console.log("Tokenizer ready!");
-        resolve();
+  const tryBuild = (dicPath: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (!window.kuromoji) {
+        return reject(new Error('Library Kuromoji.js gagal dimuat.'));
       }
+
+      logger.log(`Mencoba memuat database dari: ${dicPath}`);
+      const builder = window.kuromoji.builder({ dicPath });
+      
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Koneksi CDN lambat/timeout.'));
+      }, 30000);
+
+      builder.build((err: any, tokenizer: any) => {
+        clearTimeout(timeoutId);
+        if (err) {
+          reject(err);
+        } else {
+          tokenizerInstance = tokenizer;
+          logger.log('Tokenizer siap digunakan!', 'success');
+          resolve();
+        }
+      });
     });
-  });
+  };
+
+  const dicPath = await getDictionaryPath();
+  try {
+    await tryBuild(dicPath);
+  } catch (error: any) {
+    logger.log(`Gagal memuat dari ${dicPath}. Mencoba CDN cadangan...`, 'warn');
+    
+    // Fallback ke unpkg jika jsdelivr gagal di sandbox
+    try {
+      await tryBuild(CDN_OPTIONS[1]);
+    } catch (finalErr) {
+      const isSandbox = window.location.hostname.includes('usercontent.goog');
+      let msg = 'Gagal inisialisasi kamus.';
+      if (isSandbox) {
+        msg = 'Preview Terbatas: Sandbox Google memblokir akses database kamus. Silakan DEPLOY ke Vercel agar aplikasi berjalan normal.';
+      }
+      logger.log(msg, 'error');
+      throw new Error(msg);
+    }
+  }
 }
 
 export function tokenize(text: string): Token[] {
