@@ -1,52 +1,59 @@
-/**
- * Cleans raw subtitle text by removing noises, names, and tags.
- */
-const cleanSubtitleText = (text: string): string => {
-  let cleaned = text;
+export function cleanText(text: string): string {
+  return text
+    // Remove parentheses containing speaker names e.g. （阿良々木）
+    .replace(/[（(].*?[)）]/g, '')
+    // Remove HTML tags if any
+    .replace(/<[^>]*>/g, '')
+    // Remove special chars but keep Japanese text
+    // We want to keep punctuation for context, but maybe normalize spaces
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+}
 
-  // 1. Remove HTML tags
-  cleaned = cleaned.replace(/<[^>]*>/g, '');
+export function parseSRT(content: string): string {
+  const lines = content.split('\n');
+  let fullText = '';
+  
+  const timeRegex = /^\s*\d+\s*$|^\s*\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}\s*.*$/;
 
-  // 2. Remove ASS/SSA tags (positioning, etc.) e.g., {\pos(192,210)}
-  cleaned = cleaned.replace(/\{[^}]*\}/g, '');
-
-  // 3. Remove Names in brackets (standard, full-width, square, lenticular)
-  // e.g. （阿良々木）, 【名前】, [Name]
-  cleaned = cleaned.replace(/（[^）]*）/g, '');
-  cleaned = cleaned.replace(/【[^】]*】/g, '');
-  cleaned = cleaned.replace(/\[[^\]]*\]/g, '');
-  cleaned = cleaned.replace(/\([^\)]*\)/g, ''); // Standard parentheses often used for furigana too
-
-  // 4. Remove Sound Effects/Music indicators
-  cleaned = cleaned.replace(/[♪～☆★※]/g, '');
-  cleaned = cleaned.replace(/\(BGM[^)]*\)/gi, '');
-  cleaned = cleaned.replace(/\(SE[^)]*\)/gi, '');
-
-  // 5. Remove extra whitespace and newlines
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
-
-  return cleaned;
-};
-
-export const parseSRT = (fileContent: string): string => {
-  const lines = fileContent.split(/\r?\n/);
-  let accumulatedText = "";
-
-  lines.forEach(line => {
+  for (const line of lines) {
     const trimmed = line.trim();
+    if (!trimmed) continue;
     
-    // Skip empty lines
-    if (!trimmed) return;
-    
-    // Skip numeric index lines (simple check: is it just a number?)
-    if (/^\d+$/.test(trimmed)) return;
+    // Skip numeric counters and timestamps
+    if (timeRegex.test(trimmed) || /^\d+$/.test(trimmed)) {
+      continue;
+    }
 
-    // Skip Timestamp lines (e.g., 00:00:03,628 --> 00:00:05,547)
-    if (trimmed.includes('-->')) return;
+    fullText += trimmed + '\n';
+  }
 
-    // It's likely dialog text. Add it.
-    accumulatedText += trimmed + " ";
+  return cleanText(fullText);
+}
+
+export async function processFiles(files: File[]): Promise<{ text: string; fileStats: any[] }> {
+  let combinedText = '';
+  const fileStats = [];
+
+  for (const file of files) {
+    try {
+      const text = await readFileAsText(file);
+      const parsed = parseSRT(text);
+      combinedText += parsed + '\n';
+      fileStats.push({ name: file.name, size: file.size, charCount: parsed.length });
+    } catch (e) {
+      console.error(`Error processing file ${file.name}`, e);
+    }
+  }
+
+  return { text: combinedText, fileStats };
+}
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result as string);
+    reader.onerror = (e) => reject(e);
+    reader.readAsText(file); // Browser usually detects encoding, but UTF-8 is standard for web
   });
-
-  return cleanSubtitleText(accumulatedText);
-};
+}
