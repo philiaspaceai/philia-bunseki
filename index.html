@@ -1,45 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Philia Bunrei - Japanese Difficulty Analyzer</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#6366f1" />
+    <title>Philia Bunseki - Japanese Subtitle Analyzer</title>
+    <link rel="manifest" href="/manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              jp: ['Noto Sans JP', 'sans-serif'],
-            },
-            colors: {
-              primary: {
-                50: '#eff6ff',
-                100: '#dbeafe',
-                500: '#3b82f6',
-                600: '#2563eb',
-                700: '#1d4ed8',
-              },
-              accent: {
-                50: '#f5f3ff',
-                100: '#ede9fe',
-                500: '#8b5cf6',
-                600: '#7c3aed',
-              }
-            }
-          }
-        }
-      }
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
       body {
         font-family: 'Inter', sans-serif;
         background-color: #f8fafc;
       }
       .font-jp {
-        font-family: 'Noto Sans JP', sans-serif;
+        font-family: 'Zen Maru Gothic', sans-serif;
       }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
@@ -47,7 +22,7 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f1f1; 
+        background: #f1f5f9; 
       }
       ::-webkit-scrollbar-thumb {
         background: #cbd5e1; 
@@ -55,6 +30,26 @@
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8; 
+      }
+      
+      /* Animation Utilities */
+      .fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+      .slide-up {
+        animation: slideUp 0.5s ease-out forwards;
+      }
+      .stagger-1 { animation-delay: 100ms; }
+      .stagger-2 { animation-delay: 200ms; }
+      .stagger-3 { animation-delay: 300ms; }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
       }
     </style>
   <script type="importmap">
@@ -66,7 +61,9 @@
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "recharts": "https://esm.sh/recharts@^3.6.0",
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0"
+    "uuid": "https://esm.sh/uuid@^13.0.0",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
+    "idb": "https://esm.sh/idb@^8.0.3"
   }
 }
 </script>
