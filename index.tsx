@@ -1,29 +1,42 @@
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { logger } from './services/logger';
 
-// Register Service Worker for PWA and Dictionary Handling
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(
+// Inisialisasi status
+(window as any).__SW_STATUS__ = 'PENDING';
+
+const registerSW = () => {
+  if ('serviceWorker' in navigator) {
+    // Di lingkungan preview, sw.js seringkali tidak bisa diakses lintas origin
+    navigator.serviceWorker.register('sw.js').then(
       (registration) => {
-        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        logger.log(`ServiceWorker aktif: ${registration.scope}`, 'success');
+        (window as any).__SW_STATUS__ = 'ACTIVE';
       },
       (err) => {
-        console.log('ServiceWorker registration failed: ', err);
+        logger.log(`SW non-aktif (Preview Mode): ${err.message}`, 'warn');
+        (window as any).__SW_STATUS__ = 'FAILED';
       }
     );
-  });
+  } else {
+    (window as any).__SW_STATUS__ = 'FAILED';
+  }
+};
+
+if (document.readyState === 'complete') {
+  registerSW();
+} else {
+  window.addEventListener('load', registerSW);
 }
 
 const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
+if (rootElement) {
+  const root = ReactDOM.createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
 }
-
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
