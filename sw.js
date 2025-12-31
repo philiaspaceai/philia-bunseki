@@ -1,74 +1,69 @@
+
 const CACHE_NAME = 'philia-cache-v1';
 const DICT_DB_NAME = 'kuromoji-dict';
 const DICT_STORE_NAME = 'files';
 
-// Segera ambil alih kontrol tanpa menunggu reload
 self.addEventListener('install', (event) => {
+  console.log('[SW] Install event');
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    Promise.all([
-      caches.keys().then(names => Promise.all(names.map(name => caches.delete(name)))),
-      self.clients.claim()
-    ])
-  );
+  console.log('[SW] Activate event - claiming clients');
+  event.waitUntil(self.clients.claim());
 });
 
-// Helper untuk mengambil file dari IndexedDB dengan timeout dan error handling
-function getFileFromIDB(filename) {
+async function getFileFromIDB(filename) {
   let targetFile = filename;
-  // Alias untuk kompatibilitas versi kuromoji
   if (filename === 'cn.dat.gz') targetFile = 'cc.dat.gz';
 
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DICT_DB_NAME, 1);
     
-    // Jika timeout 3 detik gagal buka DB, reject
-    const timeout = setTimeout(() => reject('IDB Timeout'), 3000);
-
-    request.onerror = () => {
-      clearTimeout(timeout);
-      reject('IDB Error');
-    };
-
+    request.onerror = () => reject('IDB_OPEN_ERROR');
     request.onsuccess = (event) => {
-      clearTimeout(timeout);
       const db = event.target.result;
       try {
         const tx = db.transaction(DICT_STORE_NAME, 'readonly');
         const store = tx.objectStore(DICT_STORE_NAME);
         const getReq = store.get(targetFile);
         getReq.onsuccess = () => {
-          resolve(getReq.result);
-          db.close(); // Tutup koneksi setelah selesai
+          const result = getReq.result;
+          db.close();
+          resolve(result);
         };
         getReq.onerror = () => {
-          reject('Get Error');
           db.close();
+          reject('IDB_GET_ERROR');
         };
       } catch (e) {
-        reject(e);
         db.close();
+        reject(e.message);
       }
     };
   });
 }
 
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  // Pastikan URL valid sebelum diproses
+  let url;
+  try {
+    url = new URL(event.request.url);
+  } catch (e) {
+    // Jika URL tidak valid (misal scheme aneh), biarkan browser menangani secara default
+    return;
+  }
 
-  // Intersep request ke path virtual kamus
   if (url.pathname.includes('/dict/')) {
     const filename = url.pathname.split('/').pop();
-    if (!filename) return;
+    console.log(`[SW] Intercepted dict request: ${filename}`);
 
     event.respondWith(
       (async () => {
         try {
           const blob = await getFileFromIDB(filename);
           if (blob) {
+            console.log(`[SW] Serving ${filename} from IndexedDB`);
             return new Response(blob, {
               status: 200,
               headers: { 
@@ -77,18 +72,18 @@ self.addEventListener('fetch', (event) => {
               }
             });
           }
-          // Jika tidak ada di IDB, jangan biarkan gantung, kembalikan 404 agar library bisa error & kita handle
-          return new Response('File not found in IndexedDB', { status: 404 });
+          console.error(`[SW] File ${filename} NOT FOUND in IDB`);
+          return new Response('File missing in local DB', { status: 404 });
         } catch (error) {
-          console.error('SW Error:', filename, error);
-          return new Response('Service Worker IDB Error', { status: 500 });
+          console.error(`[SW] Error handling ${filename}:`, error);
+          return new Response('SW IDB Internal Error', { status: 500 });
         }
       })()
     );
     return;
   }
 
-  // Caching standar untuk aset lain
+  // Cache strategy sederhana untuk aset lain
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request);
