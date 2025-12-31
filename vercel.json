@@ -1,9 +1,0 @@
-{
-    "functions": {
-        "api/analyze.ts": {
-            "maxDuration": 60,
-            "memory": 3008,
-            "includeFiles": "dict/**"
-        }
-    }
-}
