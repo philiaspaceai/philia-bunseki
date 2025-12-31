@@ -1,5 +1,5 @@
 {
-  "name": "philia-bunrei",
+  "name": "philia-bunseki",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,7 +14,9 @@
     "@supabase/supabase-js": "^2.89.0",
     "lucide-react": "^0.562.0",
     "recharts": "^3.6.0",
-    "react-router-dom": "^7.11.0"
+    "uuid": "^13.0.0",
+    "react-router-dom": "^7.11.0",
+    "idb": "^8.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
