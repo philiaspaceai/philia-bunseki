@@ -1,10 +1,10 @@
 {
   "name": "Philia Bunseki",
   "short_name": "Philia",
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#6366f1",
+  "theme_color": "#4f46e5",
   "icons": [
     {
       "src": "https://picsum.photos/192/192",
