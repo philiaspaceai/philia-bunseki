@@ -1,123 +1,177 @@
-import { JLPTLevel, BCCWJLevel, Statistics, WordData, Token } from '../types';
-import { fetchWordMetadata } from './supabaseClient';
+import { JLPTRow, BCCWJRow, AnalysisResult, WordAnalysis, BCCWJLevel } from '../types';
+import { BCCWJ_RANGES } from '../constants';
+import { v4 as uuidv4 } from 'uuid';
 
-const JLPT_ORDER = ['N5', 'N4', 'N3', 'N2', 'N1', 'Unknown'];
-const BCCWJ_ORDER = ['Beginner', 'Elementary', 'Intermediate', 'Advanced', 'Expert', 'Unknown'];
-
-export const analyzeSubtitle = async (
-  tokens: Token[], 
-  onProgress: (msg: string, val: number) => void
-): Promise<{ stats: Statistics; allWords: WordData[] }> => {
+export const analyzeSubtitle = (
+  fileName: string,
+  tokens: string[],
+  jlptData: JLPTRow[],
+  bccwjData: BCCWJRow[]
+): AnalysisResult => {
   
-  onProgress('Menghitung frekuensi kata...', 10);
-  
-  // 1. Count frequencies of lemmas (dictionary forms)
-  const frequencyMap = new Map<string, number>();
-  // Filter out non-japanese or symbols roughly
-  const validTokens = tokens.filter(t => 
-    t.partOfSpeech && 
-    !['Symbol', 'Punctuation'].includes(t.partOfSpeech[0]) &&
-    /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(t.dictionaryForm)
-  );
+  const totalWords = tokens.length;
+  const uniqueWordsSet = new Set(tokens);
+  const uniqueWordsCount = uniqueWordsSet.size;
 
-  validTokens.forEach(token => {
-    const word = token.dictionaryForm;
-    frequencyMap.set(word, (frequencyMap.get(word) || 0) + 1);
-  });
+  // Create lookup maps for O(1) access
+  const jlptMap = new Map<string, JLPTRow>();
+  jlptData.forEach(row => jlptMap.set(row.word, row));
 
-  const uniqueWords = Array.from(frequencyMap.keys());
-  const totalWords = validTokens.length;
+  const bccwjMap = new Map<string, BCCWJRow>();
+  bccwjData.forEach(row => bccwjMap.set(row.word, row));
 
-  onProgress('Mengambil data JLPT & BCCWJ dari database...', 20);
+  // Count word frequencies
+  const wordCounts = new Map<string, number>();
+  tokens.forEach(t => wordCounts.set(t, (wordCounts.get(t) || 0) + 1));
 
-  // 2. Fetch Metadata
-  const { jlptMap, bccwjMap } = await fetchWordMetadata(uniqueWords, (p) => {
-    onProgress('Query Database...', 20 + (p * 0.6)); // Map 0-100 to 20-80 range
-  });
+  const wordList: WordAnalysis[] = [];
+  let foundInDbCount = 0;
 
-  onProgress('Menganalisis skor...', 90);
+  // Stats Counters
+  const jlptStatsRaw = { N1: 0, N2: 0, N3: 0, N4: 0, N5: 0, Unknown: 0 };
+  const bccwjStatsRaw = { Beginner: 0, Elementary: 0, Intermediate: 0, Advanced: 0, Expert: 0, Unknown: 0 };
 
-  // 3. Construct Word Data
-  const allWords: WordData[] = uniqueWords.map(word => {
-    const jlpt = jlptMap.get(word) || 'Unknown';
-    const bccwjData = bccwjMap.get(word);
-    const bccwj = bccwjData?.level || 'Unknown';
-    
-    return {
-      word,
-      reading: '', // Ideally Supabase returns this, assume word for now if missing
-      jlpt,
-      bccwj,
-      frequency_rank: bccwjData?.rank,
-      count: frequencyMap.get(word) || 0
-    };
-  });
+  // Analyze each unique word
+  uniqueWordsSet.forEach(word => {
+    const count = wordCounts.get(word) || 0;
+    const jlptInfo = jlptMap.get(word);
+    const bccwjInfo = bccwjMap.get(word);
 
-  // 4. Statistics Calculation
-  const jlptStats: Record<JLPTLevel, number> = { N5: 0, N4: 0, N3: 0, N2: 0, N1: 0, Unknown: 0 };
-  const bccwjStats: Record<BCCWJLevel, number> = { Beginner: 0, Elementary: 0, Intermediate: 0, Advanced: 0, Expert: 0, Unknown: 0 };
+    // Reading fallback
+    const reading = jlptInfo?.reading || bccwjInfo?.reading || '－';
 
-  let coveredWords = 0;
-  let difficultyScoreAcc = 0;
-
-  // Weightings for score (Higher = Harder)
-  const jlptWeights = { N5: 1, N4: 2, N3: 4, N2: 6, N1: 9, Unknown: 10 };
-  const bccwjWeights = { Beginner: 1, Elementary: 2, Intermediate: 4, Advanced: 6, Expert: 8, Unknown: 10 };
-
-  allWords.forEach(w => {
-    jlptStats[w.jlpt]++;
-    bccwjStats[w.bccwj]++;
-
-    if (w.jlpt !== 'Unknown' || w.bccwj !== 'Unknown') {
-      coveredWords++;
+    // 1. JLPT Analysis
+    let jlptLevel: number | null = null;
+    if (jlptInfo) {
+      jlptLevel = jlptInfo.tags;
+      foundInDbCount++;
     }
 
-    // Weighted score based on frequency in subtitle
-    // A word appearing 10 times impacts difficulty more than once? 
-    // Usually difficulty is defined by the *unique* vocabulary needed.
-    // Let's use unique words for difficulty to assess the "knowledge required".
-    difficultyScoreAcc += (jlptWeights[w.jlpt] * 0.6) + (bccwjWeights[w.bccwj] * 0.4);
+    if (jlptLevel === 1) jlptStatsRaw.N1 += count;
+    else if (jlptLevel === 2) jlptStatsRaw.N2 += count;
+    else if (jlptLevel === 3) jlptStatsRaw.N3 += count;
+    else if (jlptLevel === 4) jlptStatsRaw.N4 += count;
+    else if (jlptLevel === 5) jlptStatsRaw.N5 += count;
+    else jlptStatsRaw.Unknown += count;
+
+    // 2. BCCWJ Analysis
+    let bccwjId: number | null = null;
+    let bccwjLevel: BCCWJLevel = 'Unknown';
+    
+    if (bccwjInfo) {
+      bccwjId = bccwjInfo.id;
+      if (!jlptInfo) foundInDbCount++; // If found here but not JLPT, it counts as covered
+    }
+
+    if (bccwjId) {
+      if (bccwjId <= BCCWJ_RANGES.Beginner) bccwjLevel = 'Beginner';
+      else if (bccwjId <= BCCWJ_RANGES.Elementary) bccwjLevel = 'Elementary';
+      else if (bccwjId <= BCCWJ_RANGES.Intermediate) bccwjLevel = 'Intermediate';
+      else if (bccwjId <= BCCWJ_RANGES.Advanced) bccwjLevel = 'Advanced';
+      else bccwjLevel = 'Expert';
+    }
+
+    // Increment BCCWJ stats
+    bccwjStatsRaw[bccwjLevel] += count;
+
+    wordList.push({
+      word,
+      reading,
+      count,
+      jlptLevel,
+      bccwjId,
+      bccwjLevel
+    });
   });
 
-  // Calculate percentages
-  const jlptDist: any = {};
-  JLPT_ORDER.forEach(k => {
-    jlptDist[k] = { count: jlptStats[k as JLPTLevel], percentage: Math.round((jlptStats[k as JLPTLevel] / uniqueWords.length) * 100) };
-  });
+  // Sort wordlist by frequency
+  wordList.sort((a, b) => b.count - a.count);
 
-  const bccwjDist: any = {};
-  BCCWJ_ORDER.forEach(k => {
-    bccwjDist[k] = { count: bccwjStats[k as BCCWJLevel], percentage: Math.round((bccwjStats[k as BCCWJLevel] / uniqueWords.length) * 100) };
-  });
+  // Calculate Percentages
+  const calculatePercentage = (val: number) => totalWords > 0 ? parseFloat(((val / totalWords) * 100).toFixed(1)) : 0;
 
-  // Overall Score (0-100)
-  // Max possible avg weight is roughly 10 (All Unknown/N1). Min is 1.
-  const avgWeight = uniqueWords.length > 0 ? difficultyScoreAcc / uniqueWords.length : 0;
-  // Normalize 1..10 to 0..100 where 100 is HARDEST? Or EASIEST?
-  // Request implies score. Usually 100 = Perfect/Easy, but "Difficulty Score" usually implies higher = harder.
-  // Let's do Difficulty Score: 0 (Beginner) to 100 (Native/Impossible)
-  const overallScore = Math.min(100, Math.round((avgWeight / 8) * 100));
+  const jlptStats = {
+    N5: { count: jlptStatsRaw.N5, percentage: calculatePercentage(jlptStatsRaw.N5) },
+    N4: { count: jlptStatsRaw.N4, percentage: calculatePercentage(jlptStatsRaw.N4) },
+    N3: { count: jlptStatsRaw.N3, percentage: calculatePercentage(jlptStatsRaw.N3) },
+    N2: { count: jlptStatsRaw.N2, percentage: calculatePercentage(jlptStatsRaw.N2) },
+    N1: { count: jlptStatsRaw.N1, percentage: calculatePercentage(jlptStatsRaw.N1) },
+    Unknown: { count: jlptStatsRaw.Unknown, percentage: calculatePercentage(jlptStatsRaw.Unknown) },
+  };
 
-  let grade = 'F';
-  let recommendation = '';
+  const bccwjStats = {
+    Beginner: { count: bccwjStatsRaw.Beginner, percentage: calculatePercentage(bccwjStatsRaw.Beginner) },
+    Elementary: { count: bccwjStatsRaw.Elementary, percentage: calculatePercentage(bccwjStatsRaw.Elementary) },
+    Intermediate: { count: bccwjStatsRaw.Intermediate, percentage: calculatePercentage(bccwjStatsRaw.Intermediate) },
+    Advanced: { count: bccwjStatsRaw.Advanced, percentage: calculatePercentage(bccwjStatsRaw.Advanced) },
+    Expert: { count: bccwjStatsRaw.Expert, percentage: calculatePercentage(bccwjStatsRaw.Expert) },
+    Unknown: { count: bccwjStatsRaw.Unknown, percentage: calculatePercentage(bccwjStatsRaw.Unknown) },
+  };
 
-  if (overallScore < 20) { grade = 'A'; recommendation = 'Sangat Mudah (N5 level). Cocok untuk pemula.'; }
-  else if (overallScore < 40) { grade = 'B'; recommendation = 'Mudah (N4 level). Cocok untuk latihan dasar.'; }
-  else if (overallScore < 60) { grade = 'C'; recommendation = 'Menengah (N3 level). Anime standar.'; }
-  else if (overallScore < 80) { grade = 'D'; recommendation = 'Sulit (N2 level). Bahasa kompleks.'; }
-  else { grade = 'E'; recommendation = 'Sangat Sulit (N1+). Banyak kosakata jarang.'; }
+  // CONCLUSIONS
+
+  // JLPT Logic: Weighted Average of known words
+  // N5=1 point, N1=5 points. Higher average = harder.
+  // Unknown = 6 points (hardest).
+  let jlptScoreSum = 0;
+  let jlptWeightTotal = 0;
+
+  // Simple heuristic for Conclusion Label
+  let jlptConclusion = "Unknown";
+  // Find the highest density
+  const n5n4 = jlptStats.N5.percentage + jlptStats.N4.percentage;
+  const n3 = jlptStats.N3.percentage;
+  const n2n1 = jlptStats.N2.percentage + jlptStats.N1.percentage;
+  const unk = jlptStats.Unknown.percentage;
+
+  if (unk > 40) jlptConclusion = "High Unknown (N1+)";
+  else if (n2n1 > 20) jlptConclusion = "N1-N2 (Advanced)";
+  else if (n3 > 25) jlptConclusion = "N3 (Intermediate)";
+  else if (n5n4 > 50) jlptConclusion = "N4-N5 (Beginner)";
+  else jlptConclusion = "N3-N4 (Mixed)";
+
+  // BCCWJ Logic
+  let bccwjConclusion = "Unknown";
+  const advExp = bccwjStats.Advanced.percentage + bccwjStats.Expert.percentage;
+  const begElem = bccwjStats.Beginner.percentage + bccwjStats.Elementary.percentage;
+  
+  if (advExp > 15) bccwjConclusion = "Native Level";
+  else if (begElem > 70) bccwjConclusion = "Daily Conversation";
+  else bccwjConclusion = "Standard Japanese";
+
+  // Overall Score (0-100, where 100 is hardest)
+  // Base score on N-levels + Unknown penalty
+  const difficultyScore = 
+    (jlptStats.N5.percentage * 1) + 
+    (jlptStats.N4.percentage * 3) + 
+    (jlptStats.N3.percentage * 6) + 
+    (jlptStats.N2.percentage * 8) + 
+    (jlptStats.N1.percentage * 10) + 
+    (jlptStats.Unknown.percentage * 9); 
+  
+  // Normalize roughly to 0-100 (max possible is roughly 1000 if 100% N1)
+  const finalScore = Math.min(100, Math.round(difficultyScore / 10));
+
+  let recommendation = "";
+  if (finalScore < 30) recommendation = "Cocok untuk pemula (N5/N4).";
+  else if (finalScore < 50) recommendation = "Cocok untuk level menengah (N3).";
+  else if (finalScore < 70) recommendation = "Tantangan bagus untuk N2.";
+  else recommendation = "Sangat sulit, direkomendasikan untuk N1 atau Native.";
 
   return {
-    stats: {
-      totalWords,
-      uniqueWords: uniqueWords.length,
-      coverage: Math.round((coveredWords / uniqueWords.length) * 100),
-      jlptDistribution: jlptDist,
-      bccwjDistribution: bccwjDist,
-      overallScore,
-      grade,
-      recommendation
-    },
-    allWords
+    id: uuidv4(),
+    fileName,
+    title: fileName.replace('.srt', ''),
+    timestamp: Date.now(),
+    totalWords,
+    uniqueWords: uniqueWordsCount,
+    coverage: parseFloat(((foundInDbCount / uniqueWordsCount) * 100).toFixed(1)),
+    jlptStats,
+    bccwjStats,
+    jlptConclusion,
+    bccwjConclusion,
+    overallScore: finalScore,
+    recommendation,
+    wordList
   };
 };
