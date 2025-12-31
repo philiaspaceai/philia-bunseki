@@ -1,67 +1,67 @@
-export interface ParsedSubtitle {
-  fileName: string;
-  rawText: string;
-  cleanText: string;
+export interface Token {
+  word_id: number;
+  word_type: string;
+  word_position: number;
+  surface_form: string;
+  pos: string;
+  pos_detail_1: string;
+  pos_detail_2: string;
+  pos_detail_3: string;
+  conjugated_type: string;
+  conjugated_form: string;
+  basic_form: string;
+  reading?: string;
+  pronunciation?: string;
 }
 
-export interface TokenizedWord {
-  surface: string;
-  dictionaryForm: string;
-  reading: string;
-  partOfSpeech: string[];
-}
-
-export interface JLPTRow {
+export interface SupabaseWord {
   word: string;
-  reading: string;
-  tags: number; // 1=N1, 5=N5
-}
-
-export interface BCCWJRow {
-  id: number;
-  word: string;
-  reading: string;
+  reading?: string;
+  tags?: string; // e.g. "4" for N4
+  id?: number; // BCCWJ rank
 }
 
 export interface WordAnalysis {
-  word: string;
-  reading?: string;
+  token: Token;
+  jlptLevel: number | null; // 1-5, or null
+  bccwjRank: number | null;
+  isUnknown: boolean;
   count: number;
-  jlptLevel: number | null; // 1-5, null if unknown
-  bccwjId: number | null;
-  bccwjLevel: BCCWJLevel;
+  exampleSentence?: string;
 }
 
-export type BCCWJLevel = 'Beginner' | 'Elementary' | 'Intermediate' | 'Advanced' | 'Expert' | 'Unknown';
-
-export interface AnalysisResult {
-  id: string; // uuid
-  fileName: string;
-  title: string; // derived from filename or user input
-  timestamp: number;
-  totalWords: number; // Token count (with duplicates)
+export interface AnalysisStats {
+  totalWords: number;
   uniqueWords: number;
-  coverage: number; // % found in DB
-  
-  // Stats
-  jlptStats: Record<string, { count: number; percentage: number }>;
-  bccwjStats: Record<string, { count: number; percentage: number }>;
-  
-  // Conclusions
-  jlptConclusion: string;
-  bccwjConclusion: string;
-  overallScore: number; // 0-100
+  coverage: {
+    n1: number;
+    n2: number;
+    n3: number;
+    n4: number;
+    n5: number;
+    unknown: number;
+  };
+  bccwjDistribution: {
+    veryCommon: number; // 1-1000
+    common: number; // 1001-5000
+    uncommon: number; // 5001-10000
+    rare: number; // 10001+
+    notRanked: number;
+  };
+  overallDifficulty: string; // "N5" - "N1"
   recommendation: string;
-
-  // Data
-  wordList: WordAnalysis[];
 }
 
-export interface HistoryItem {
-  id: string;
-  fileName: string;
-  timestamp: number;
-  jlptConclusion: string;
-  bccwjConclusion: string;
-  overallScore: number;
+export interface DictionaryProgress {
+  total: number;
+  current: number;
+  filename: string;
+  isComplete: boolean;
+  error?: string;
+}
+
+export interface SubtitleFile {
+  name: string;
+  size: number;
+  content: string;
 }
