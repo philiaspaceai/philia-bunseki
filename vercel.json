@@ -3,7 +3,7 @@
         "api/analyze.ts": {
             "maxDuration": 60,
             "memory": 3008,
-            "includeFiles": "node_modules/kuromoji/dict/**"
+            "includeFiles": "dict/**"
         }
     }
 }
