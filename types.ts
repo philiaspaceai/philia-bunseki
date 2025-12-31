@@ -1,3 +1,4 @@
+
 export interface Token {
   word_id: number;
   word_type: string;
@@ -64,4 +65,11 @@ export interface SubtitleFile {
   name: string;
   size: number;
   content: string;
+}
+
+// Global interface for system-wide logging
+export interface LogEntry {
+  timestamp: string;
+  message: string;
+  type: 'info' | 'warn' | 'error' | 'success';
 }
