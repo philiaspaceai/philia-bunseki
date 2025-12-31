@@ -17,34 +17,33 @@ const getTokenizer = async (): Promise<kuromoji.Tokenizer<kuromoji.IpadicFeature
     if (tokenizer) return tokenizer;
 
     return new Promise((resolve, reject) => {
-        // Fix for TS errors: process.cwd() not on type 'Process' and __dirname missing in ESM/Vite context
         const cwd = (process as any).cwd();
-
-        // Coba beberapa kemungkinan path untuk kamus
+        
+        // Kita sekarang mencari folder 'dict' yang ada di root proyek (berkat script postinstall)
+        // Vercel biasanya menempatkan file includeFiles relatif terhadap root eksekusi.
         const possiblePaths = [
-            path.join(cwd, 'node_modules', 'kuromoji', 'dict'),
-            // Fallback replacements for __dirname logic
-            path.join(cwd, '..', 'node_modules', 'kuromoji', 'dict'), 
-            path.join(cwd, 'api', 'node_modules', 'kuromoji', 'dict'), 
-            path.join(cwd, 'dict') // Fallback khusus Vercel
+            path.join(cwd, 'dict'),           // Root standar
+            path.join(cwd, '..', 'dict'),     // Jika cwd ada di dalam api/
         ];
 
         let dicPath = '';
         for (const p of possiblePaths) {
-            if (fs.existsSync(p)) {
+            // Kita cek apakah ada file .dat di dalamnya untuk memastikan itu folder kamus yang benar
+            if (fs.existsSync(p) && fs.existsSync(path.join(p, 'base.dat'))) {
                 dicPath = p;
-                console.log(`[DEBUG] Dictionary found at: ${dicPath}`);
+                console.log(`[DEBUG] Kamus ditemukan di: ${dicPath}`);
                 break;
             }
         }
 
         if (!dicPath) {
-             console.error(`[ERROR] Dictionary not found. Checked: ${possiblePaths.join(', ')}`);
-             console.error(`[DEBUG] CWD: ${cwd}`);
+             console.error(`[ERROR] Kamus tidak ditemukan. Lokasi yang diperiksa: ${possiblePaths.join(', ')}`);
+             console.error(`[DEBUG] CWD saat ini: ${cwd}`);
              try {
-                console.error(`[DEBUG] Root listing: ${fs.readdirSync(cwd).join(', ')}`);
+                // List isi folder root untuk debugging
+                console.error(`[DEBUG] Isi folder root: ${fs.readdirSync(cwd).join(', ')}`);
              } catch (e) { /* ignore */ }
-             return reject(new Error("Dictionary directory not found"));
+             return reject(new Error("File kamus bahasa Jepang tidak ditemukan di server."));
         }
         
         kuromoji.builder({ dicPath })
