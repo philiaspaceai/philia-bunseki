@@ -1,20 +1,58 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 📊 Jimaku Bunseki (字幕分析)
 
-# Run and deploy your AI Studio app
+**Jimaku Bunseki** is a specialized PWA (Progressive Web App) designed to analyze Japanese subtitles (`.srt`). It helps learners determine the difficulty of an Anime or J-Drama by analyzing vocabulary frequency and JLPT levels.
 
-This contains everything you need to run your app locally.
+## 🚀 Features
 
-View your app in AI Studio: https://ai.studio/apps/drive/1nu6Mk3iBzRwb4DLsnby63xTfjctpCnJ2
+- **Multi-file Upload**: Analyze entire seasons (batch upload 6 files).
+- **JLPT Breakdown**: See the distribution of N5-N1 vocabulary.
+- **Frequency Analysis**: Based on BCCWJ corpus ranking.
+- **PWA Support**: Installable on mobile and desktop.
+- **Offline History**: Saves analysis results locally using IndexedDB.
+- **Privacy Focused**: Parsing happens client-side; raw text is not stored on servers.
 
-## Run Locally
+## 🛠️ Tech Stack
 
-**Prerequisites:**  Node.js
+- **Framework**: React 18 + TypeScript + Vite
+- **Styling**: Tailwind CSS
+- **Database**: Supabase (Read-only Dictionary), IndexedDB (Local History)
+- **Charts**: Recharts
+- **Icons**: Lucide React
 
+## 📦 Installation & Setup
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/jimaku-bunseki.git
+   cd jimaku-bunseki
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Run local server**
+   ```bash
+   npm run dev
+   ```
+
+4. **Build for production**
+   ```bash
+   npm run build
+   ```
+
+## ☁️ Deployment (Vercel)
+
+This project is configured for seamless deployment on Vercel.
+
+1. Push this code to your GitHub repository.
+2. Go to [Vercel Dashboard](https://vercel.com).
+3. Click **"Add New..."** -> **"Project"**.
+4. Import your `jimaku-bunseki` repository.
+5. Vercel will automatically detect **Vite**.
+6. Click **Deploy**.
+
+## 📄 License
+
+MIT License. Created by Philia Space Community.
