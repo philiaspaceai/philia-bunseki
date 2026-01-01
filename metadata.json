@@ -1,5 +1,5 @@
 {
-  "name": "Philia Bunseki",
-  "description": "Advanced Japanese anime subtitle analysis tool for JLPT level prediction and vocabulary statistics.",
+  "name": "Jimaku Bunseki",
+  "description": "Japanese subtitle analysis tool for JLPT leveling and vocabulary frequency.",
   "requestFramePermissions": []
 }
